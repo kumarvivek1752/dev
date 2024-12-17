@@ -43,7 +43,7 @@ copy_file() {
     from=$1
     to=$2
     name=$(basename $from)
-    execute rm $from
+    execute rm $to/$name
     execute cp $from $to/$name
 }
 
@@ -52,5 +52,14 @@ log "----------------- dev-env ---------------"
 
 copy_dir .config $HOME/.config
 # copy_file .spconf $HOME
-# copy_file .specialrc ~/
+
+
+# additional configs
+
+copy_file .config/google-chrome-flags.conf $HOME/.config
+copy_file .config/chrome-flags.conf $HOME/.config
+copy_file .config/microsoft-edge-stable-flags.conf ~/.config
+copy_file .config/kwalletrc ~/.config/kwalletrc
+
+# Home Dir configs
 
