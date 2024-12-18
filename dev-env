@@ -59,7 +59,7 @@ copy_dir .config $HOME/.config
 copy_file .config/google-chrome-flags.conf $HOME/.config
 copy_file .config/chrome-flags.conf $HOME/.config
 copy_file .config/microsoft-edge-stable-flags.conf ~/.config
-copy_file .config/kwalletrc ~/.config/kwalletrc
+copy_file .config/kwalletrc ~/.config
 
 # Home Dir configs
 

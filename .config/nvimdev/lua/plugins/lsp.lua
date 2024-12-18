@@ -16,11 +16,13 @@ return {
         },
         config = function()
             local lsp = require "lspconfig"
-            lsp.lua_ls.setup {}
-            lsp.pyright.setup {}
-            lsp.rust_analyzer.setup {}
-            lsp.bashls.setup {}
+            local capabilities = require('blink.cmp').get_lsp_capabilities()
+            lsp.lua_ls.setup { capabilities = capabilities }
+            lsp.pyright.setup { capabilities = capabilities }
+            lsp.rust_analyzer.setup { capabilities = capabilities }
+            lsp.bashls.setup { capabilities = capabilities }
             lsp.ts_ls.setup {
+                capabilities = capabilities,
                 init_options = {
                     plugins = {
                         {
