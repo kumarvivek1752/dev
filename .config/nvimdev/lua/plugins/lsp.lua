@@ -1,5 +1,22 @@
 return {
     {
+        "WhoIsSethDaniel/mason-tool-installer.nvim",
+        dependencies = {
+            { "williamboman/mason.nvim",           opts = true },
+            { "williamboman/mason-lspconfig.nvim", opts = true },
+        },
+        opts = {
+            ensure_installed = {
+                "pyright", -- LSP for python
+                "ruff",    -- linter & formatter (includes flake8, pep8, black, isort, etc.)
+                "debugpy", -- debugger
+                "taplo",   -- LSP for toml (e.g., for pyproject.toml files)
+                "django-template-lsp",
+                "gopls"
+            },
+        },
+    },
+    {
         "neovim/nvim-lspconfig",
         dependencies = {
             {
@@ -19,7 +36,12 @@ return {
             local capabilities = require('blink.cmp').get_lsp_capabilities()
             lsp.lua_ls.setup { capabilities = capabilities }
             lsp.pyright.setup { capabilities = capabilities }
+            lsp.ruff.setup({
+                -- disable ruff as hover provider to avoid conflicts with pyright
+                on_attach = function(client) client.server_capabilities.hoverProvider = false end,
+            })
             lsp.rust_analyzer.setup { capabilities = capabilities }
+            lsp.gopls.setup {}
             lsp.bashls.setup { capabilities = capabilities }
             lsp.ts_ls.setup {
                 capabilities = capabilities,
@@ -39,6 +61,10 @@ return {
                 },
             }
 
+            lsp.djlsp.setup {
+                cmd = { "djlsp" },
+            }
+
             vim.api.nvim_create_autocmd('LspAttach', {
                 callback = function(args)
                     local client = vim.lsp.get_client_by_id(args.data.client_id)
@@ -52,6 +78,7 @@ return {
                             callback = function()
                                 vim.lsp.buf.format({ bufnr = args.buf, id = client.id })
                             end,
+
                         })
                     end
                 end,
