@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+
+# Check if tmux is installed
+if command -v tmux >/dev/null  2>&1; then
+  # Check if we are not already in a tmux session
+  if [ -z "$TMUX" ]; then
+    # Start a new tmux session and attach to it
+    tmux attach-session -t default || tmux new-session -s default
+  fi
+fi
+
+# Function to kill the tmux session when the terminal is closed
+kill_tmux_session() {
+  # Check if we are in a tmux session
+  if [ -n "$TMUX" ]; then
+    # Kill the tmux session
+    tmux kill-session
+  fi
+}
+
+# Set the trap to call kill_tmux_session when the shell exits
+trap 'kill_tmux_session' EXIT
+
+
+
+

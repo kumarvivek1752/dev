@@ -1,0 +1,5 @@
+#!/bin/bash
+
+bri=$(brightnessctl | grep -oP '(?<=\().*(?=%\))')
+
+echo " ${bri} %"

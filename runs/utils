@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+
+echo "----------------- installing utility softwares -----------------"
+# yes | sudo pacman -S firefox neovim vim zsh hyprland kitty npm i3 python3-venv
+yes | sudo pacman -S firefox neovim zsh hyprland kitty npm i3-wm python go rustup
+
+rustup toolchain install stable
+cargo install stylua
+
+yes | yay -S ab-download-manager
+
