@@ -57,7 +57,7 @@
   w = !git-when-merged --log
   rf = "!cd -- ${GIT_PREFIX:-.}; find . -maxdepth 3 -type d -name .git -exec echo 'repo: {}' \\; -exec git -C '{}' fetch --all --prune \\;"
   l  = log -8 --graph --oneline --decorate
-  ld = log -20 --graph --pretty=format:'%C(yellow)%h%C(bold black white)%d%Creset %s %C(bold green)%cr %Creset%C(white)%an' --abbrev-commit --date=relative
+  ld = log -20 --graph --pretty=format:'%C(auto)%h%d %s %C(green)%cr %C(blue)<%an>' --abbrev-commit --date=relative
   ll = log --stat --decorate --source -p
   b  = branch -vv
   # Recent branches.
@@ -66,7 +66,7 @@
   co = checkout
   cou = "!git checkout -b \"$@\" && git branch --set-upstream-to upstream/master"
   rl = log --walk-reflogs --boundary --pretty=format:\"%ci %h %gd %gs\"
-  ri = "!sh -c 't=\"${1:-master}\"; s=\"${2:-HEAD}\"; mb=\"$(git merge-base \"$t\" \"$s\")\"; if test \"x$mb\" = x ; then o=\"$t\"; else lm=\"$(git log -n1 --merges \"$t..$s\" --pretty=%H)\"; if test \"x$lm\" = x ; then o=\"$mb\"; else o=\"$lm\"; fi; fi; test $# -gt 0 && shift; test $# -gt 0 && shift; git rebase --interactive --keep-empty --autosquash \"$o\" \"$@\"'"
+  ri = "!sh -c 't=\"${1:-master}\"; s=\"${2:-HEAD}\"; mb=\"$(git merge-base \"$t\" \"$s\")\"; if test \"x$mb\" = x ; then o=\"$t\"; else lm=\"$(git log -n1 --merges \"$t..$s\" --pretty=%H)\"; if test \"x$mb\" = x ; then o=\"$lm\"; else o=\"$lm\"; fi; fi; test $# -gt 0 && shift; test $# -gt 0 && shift; git rebase --interactive --keep-empty --autosquash \"$o\" \"$@\"'"
 [fetch]
   writeCommitGraph = true
 [advice]
@@ -76,29 +76,8 @@
 [feature]
   manyFiles = true
 [color]
-  # default in Git ≥ 1.8.4
+  # default in Git ≥ 1.8.4 - uses terminal theme dynamically
   ui = auto
-[color "branch"]
-  current   = bold white green
-  local     = bold yellow
-  remote    = bold magenta
-  upstream  = bold cyan
-[color "status"]
-  # staged changes
-  added     = bold green
-  updated   = bold white green
-  # un-staged changes
-  changed   = bold yellow
-  untracked = bold cyan
-  nobranch  = bold red white
-[color "diff"]
-  meta = bold cyan
-  frag = bold magenta
-  old  = bold red
-  new  = bold green
-  #NOTE: whitespace is highlighted only on new lines, not removed/old.
-  #Use "git diff -R" to reverse the diff to see removed whitespace.
-  whitespace = bold red white
 
 # See also: `includeIf`  https://lobste.rs/s/dtrkna/#c_ipltmn
 #

@@ -17,7 +17,8 @@ log() {
         echo "$@"
     fi
 }
-execute(){
+
+execute() {
     log "execute $@"
     if [[ $dry == "1" ]]; then 
         return 
@@ -25,52 +26,66 @@ execute(){
     "$@"
 }
 
-cd $script_dir
+cd "$script_dir"
 
 copy_dir() {
-    pushd $1
-    form=$1
-    to=$2
-    dirs=$(find . -mindepth 1 -maxdepth 1 -type d)
-    for dir in $dirs; do
-        execute rm -rf $to/$dir
-        execute cp -r $dir $to/$dir
+    src=$1
+    dest=$2
+    for dir in "$src"/*; do
+        if [ -d "$dir" ]; then
+            target=$(basename "$dir")
+            execute rm -rf -- "$dest/$target"
+            execute cp -r "$dir" "$dest/"
+        fi
     done
-    popd > /dev/null
 }
 
 copy_file() {
     from=$1
-    to=$2
-    name=$(basename $from)
-    execute rm $to/$name
-    execute cp $from $to/$name
+    dest_dir=$2
+    execute rm -f "$dest_dir/$(basename "$from")"
+    execute cp "$from" "$dest_dir/"
 }
 
+reload_hyprland() {
+    if command -v hyprctl >/dev/null 2>&1 && pgrep -x Hyprland >/dev/null 2>&1; then
+        # Find active socket dir in /run/user/$UID/hypr/ that contains .socket.sock
+        active_socket_dir=$(find "/run/user/$UID/hypr" -maxdepth 2 -name ".socket.sock" 2>/dev/null | head -n 1 | xargs dirname 2>/dev/null)
+        if [ -n "$active_socket_dir" ]; then
+            instance_sig=$(basename "$active_socket_dir")
+            log "Reloading Hyprland instance ($instance_sig)..."
+            if [[ $dry == "0" ]]; then
+                HYPRLAND_INSTANCE_SIGNATURE="$instance_sig" hyprctl reload >/dev/null 2>&1
+            fi
+        else
+            log "Reloading Hyprland..."
+            if [[ $dry == "0" ]]; then
+                hyprctl reload >/dev/null 2>&1
+            fi
+        fi
+    fi
+}
 
 log "----------------- dev-env ---------------"
 
-copy_dir .config $HOME/.config
-# copy_file .spconf $HOME
-
+copy_dir .config "$HOME/.config"
 
 # additional configs
-
-copy_file .config/google-chrome-flags.conf $HOME/.config
-copy_file .config/chrome-flags.conf $HOME/.config
-copy_file .config/microsoft-edge-stable-flags.conf ~/.config
-copy_file .config/kwalletrc ~/.config
+copy_file .config/google-chrome-flags.conf "$HOME/.config"
+copy_file .config/chrome-flags.conf "$HOME/.config"
+copy_file .config/microsoft-edge-stable-flags.conf "$HOME/.config"
+copy_file .config/kwalletrc "$HOME/.config"
 
 # Home Dir configs
-copy_file .zshrc $HOME/.zshrc
-copy_file .bashrc $HOME/.bashrc
-copy_file .gitconfig $HOME/.gitconfig
-copy_file .gitexcludes $HOME/.gitexcludes
-copy_file .gtkrc-2.0 $HOME/.gtkrc-2.0
-copy_file kanata.kbd $HOME/kanata.kbd
-copy_file .config/mimeapps.list $HOME/.config/mimeapps.list
-copy_file .config/QtProject.conf $HOME/.config/QtProject.conf
-copy_file .config/pavucontrol.ini $HOME/.config/pavucontrol.ini
+copy_file .zshrc "$HOME"
+copy_file .bashrc "$HOME"
+copy_file .gitconfig "$HOME"
+copy_file .gitexcludes "$HOME"
+copy_file .gtkrc-2.0 "$HOME"
+copy_file kanata.kbd "$HOME"
+copy_file .config/mimeapps.list "$HOME/.config"
+copy_file .config/QtProject.conf "$HOME/.config"
+copy_file .config/pavucontrol.ini "$HOME/.config"
 
-
-
+# Auto reload Hyprland if running
+reload_hyprland
