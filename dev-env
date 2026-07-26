@@ -64,5 +64,13 @@ copy_file .config/kwalletrc ~/.config
 # Home Dir configs
 copy_file .zshrc $HOME/.zshrc
 copy_file .bashrc $HOME/.bashrc
+copy_file .gitconfig $HOME/.gitconfig
+copy_file .gitexcludes $HOME/.gitexcludes
+copy_file .gtkrc-2.0 $HOME/.gtkrc-2.0
+copy_file kanata.kbd $HOME/kanata.kbd
+copy_file .config/mimeapps.list $HOME/.config/mimeapps.list
+copy_file .config/QtProject.conf $HOME/.config/QtProject.conf
+copy_file .config/pavucontrol.ini $HOME/.config/pavucontrol.ini
+
 
 
