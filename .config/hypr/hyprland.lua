@@ -117,11 +117,15 @@ local menu = "rofi -show drun"
 
 
 
+-- locks the session before suspend + on idle (see hypridle.conf)
+
+
 -- exec-once = $terminal
 
 -- exec-once = nm-applet &
 
 -- exec-once = waybar & hyprpaper & firefox
+
 
 
 
@@ -270,7 +274,7 @@ hl.config({
     },
 })
 
--- TODO: manual review: gesture = 3, "horizontal", "workspace"
+hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 
 -- Example per-device config
 
@@ -309,14 +313,22 @@ hl.bind(mainMod .. " + " .. "E", hl.dsp.exec_cmd("thunar"))
 
 hl.bind(mainMod .. " + " .. "F", hl.dsp.window.fullscreen())
 
-hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "L", hl.dsp.exec_cmd("hyprlock && brightnessctl s 2"))
+-- `hyprlock && brightnessctl s 2` ran brightnessctl only AFTER hyprlock exited,
+
+-- i.e. it dimmed the screen to 2 once you had unlocked. Use logind's lock
+
+-- signal instead so hypridle owns the lock, with no brightness side effect.
+
+hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "L", hl.dsp.exec_cmd("loginctl lock-session"))
 
 hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "F", hl.dsp.window.float())
 
 -- bind = $mainMod, mouse:274, moveactive
 
--- TODO: manual review (unknown dispatcher: resizeactive)
--- hl.bind("$mainMod + mouse:273", hl.dsp.resizeactive())
+-- NOTE: the .conf had `resizeactive` bound to a mouse button, which takes a
+-- delta and does nothing useful from a mouse. The Lua API's drag dispatcher is
+-- the mouse equivalent; this is the one line whose behaviour changed.
+hl.bind(mainMod .. " + " .. "mouse:273", hl.dsp.window.drag({ mode = "resize" }))
 
 hl.bind(mainMod .. " + " .. "V", hl.dsp.exec_cmd("~/.config/hypr/scripts/clipboard.sh"))
 
@@ -331,6 +343,10 @@ hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "P", hl.dsp.window.pseudo())
 -- dwindle
 
 -- bind = $mainMod SHIFT, J, togglesplit, # dwindle :Todo
+
+-- Offline Speech-to-Text Dictation (Whisper)
+
+hl.bind("CTRL" .. " + " .. "SPACE", hl.dsp.exec_cmd("/home/vivek/.local/bin/dictate-toggle"))
 
 -- Move focus with mainMod + arrow keys
 
@@ -487,11 +503,11 @@ hl.window_rule({
 })
 
 hl.window_rule({
-    name  = "workspace_4",
+    name  = "workspace_3",
     match = {
         class = "firefox",
     },
-    workspace = 4,
+    workspace = 3,
 })
 
 hl.window_rule({
@@ -535,19 +551,19 @@ hl.window_rule({
 })
 
 hl.window_rule({
-    name  = "workspace_7",
+    name  = "workspace_9",
     match = {
         class = "protonvpn-app",
     },
-    workspace = 7,
+    workspace = 9,
 })
 
 hl.window_rule({
-    name  = "workspace_7",
+    name  = "workspace_9",
     match = {
         class = "nordvpn-gui",
     },
-    workspace = 7,
+    workspace = 9,
 })
 
 -- windowrulev2 = workspace 8 silent, class:^(com-abdownloadmanager-desktop-AppKt)$
@@ -608,7 +624,21 @@ hl.env("bitdepth", 10)
 
 --############################
 
-hl.bind("Print", hl.dsp.exec_cmd("grim -g \"$(slurp)\"-| swappy -f-"))
+hl.window_rule({
+    name  = "satty-float",
+    match = { class = "com.gabm.satty" },
+    float = true,
+    size  = "50% 50%",
+    move  = "onscreen 50% 0%",
+})
+
+-- windowrule = match:class kitty, size 50% 50%
+
+-- windowrule = match:class kitty, move onscreen 50% 0%
+
+-- bind = ,Print, exec, grim -g "$(slurp)" - | swappy -f -
+
+hl.bind("Print", hl.dsp.exec_cmd("grim -g \"$(slurp)\"-| satty --filename-"))
 
 -- # bind = $mainMod, Print, exec, grim - | wl-copy
 
@@ -670,31 +700,36 @@ hl.config({
 
 -- env = XCURSOR_SIZE,32
 
+-- Debug Neovim window opened by scripts/nvim-debug-window.sh (nvim-dap).
+
+-- Only `float on` belongs here: on Hyprland 0.56 a new kitty window reports
+
+-- fullscreen=1 (= maximized), and while that is set, `size`/`move` rules are
+
+-- silently ignored. The script clears the state and sets the geometry by
+
+-- address instead.
+
 hl.window_rule({
-    name  = "match_class_kitty",
-    match = {
-        class = "float on",
-    },
-    -- TODO: review rule: "match:class kitty"
+    -- Debug Neovim window opened by scripts/nvim-debug-window.sh (nvim-dap).
+    -- Only float here: the script clears the maximized state and sets the
+    -- geometry by address, because size/move are ignored while maximized.
+    name  = "nvim-debug-float",
+    match = { class = "nvim-debug" },
+    float = true,
 })
 
 hl.window_rule({
-    name  = "match_class_kitty",
-    match = {
-        class = "size 50% 50%",
-    },
-    -- TODO: review rule: "match:class kitty"
+    name  = "kitty-float",
+    match = { class = "kitty" },
+    float = true,
+    size  = "50% 50%",
+    move  = "onscreen 50% 0%",
 })
 
-hl.window_rule({
-    name  = "match_class_kitty",
-    match = {
-        class = "move onscreen 50% 0%",
-    },
-    -- TODO: review rule: "match:class kitty"
-})
-
--- TODO: manual review: splash = false
+-- NOTE: `splash = false` from the .conf is dropped: `hyprctl getoption splash`
+-- says "no such option", so it never did anything. The real one is
+-- misc:disable_splash_rendering if you ever want it.
 
 -- Autostart
 hl.on("hyprland.start", function()
@@ -703,10 +738,12 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("brightnessctl s 10")
     hl.exec_cmd("~/.local/bin/battery_notify.sh")
     hl.exec_cmd("~/.local/bin/setup_backlight.sh")
+    hl.exec_cmd("hypridle")
     hl.exec_cmd("waybar")
     hl.exec_cmd("hyprpaper")
-    hl.exec_cmd("wl-paste --type text --watch cliphist store")
-    hl.exec_cmd("wl-paste --type image --watch cliphist store")
+    hl.exec_cmd("wl-paste --type text --watch cliphist -max-items 10000 store")
+    hl.exec_cmd("wl-paste --type image --watch cliphist -max-items 10000 store")
+    hl.exec_cmd("kdeconnect-indicator &")
     hl.exec_cmd("bluetoothctl connect 30:63:71:58:F6:64")
     hl.exec_cmd("sleep 1.5 && dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP && systemctl --user start hyprpolkitagent")
     hl.exec_cmd("dunst")
