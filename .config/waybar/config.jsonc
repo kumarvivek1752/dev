@@ -8,6 +8,7 @@
         "hyprland/workspaces"
     ],
     "modules-right": [
+        "custom/nordvpn",
         "pulseaudio",
         "network",
         "network#speed",
@@ -121,5 +122,14 @@
             ]
         },
         "on-click": "pavucontrol"
+    },
+    "custom/nordvpn": {
+        "format": "{}",
+        "exec": "nordvpn-waybar status",
+        "return-type": "json",
+        "interval": 5,
+        "signal": 9,
+        "on-click": "nordvpn-waybar toggle",
+        "on-click-right": "nordvpn-menu"
     }
 }
