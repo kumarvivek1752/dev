@@ -160,6 +160,7 @@ alias nm="neomutt"
 
 export PATH=$PATH:/home/vivek/.spicetify
 alias load-dev="set -a; source /home/vivek/work/shashank/zaren-platform-backend/.env.dev; set +a"
+alias zaren-dev="$HOME/.local/bin/zaren-dev"
 
 # Added by Antigravity CLI installer
 export PATH="/home/vivek/.local/bin:$PATH"

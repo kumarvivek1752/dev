@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Connects to the EC2 dev instance via AWS SSM, switches to the ubuntu user,
+# and automatically attaches to an existing tmux session (or creates a new one).
+
+set -euo pipefail
+
+TARGET_INSTANCE="${1:-i-06c70bf4433e13835}"
+
+echo "Connecting to EC2 instance ($TARGET_INSTANCE)..."
+
+aws ssm start-session \
+  --target "$TARGET_INSTANCE" \
+  --document-name AWS-StartInteractiveCommand \
+  --parameters 'command=["sudo -iu ubuntu bash -c \"tmux attach-session 2>/dev/null || tmux new-session -s main\""]'

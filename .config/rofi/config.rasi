@@ -20,6 +20,8 @@ configuration {
     modi: "drun";
     show-icons: true;
     display-drun: "";
+    kb-row-last: "End,KP_End,Shift+Down";
+    kb-row-first: "Home,KP_Home,Shift+Up";
 }
 
 listview {
@@ -27,7 +29,7 @@ listview {
     lines: 7;
     fixed-height: true;
     fixed-columns: true;
-    cycle: false;
+    cycle: true;
     scrollbar: false;
     border: 0px solid;
 }
