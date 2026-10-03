@@ -24,8 +24,12 @@ HEIGHT=700
 
 [ -x "$NVIM_BIN" ] || { echo "not executable: $NVIM_BIN" >&2; exit 1; }
 
-# One debug window at a time.
-pkill -f "kitty --class $CLASS" 2>/dev/null
+# One debug window at a time. Match on the cmdline but only kill real kitty
+# processes: a bare `pkill -f "kitty --class ..."` also matches any shell whose
+# own command line contains that string, including the one running this script.
+for p in $(pgrep -f "kitty --class $CLASS" 2>/dev/null); do
+  [ "$(ps -o comm= -p "$p" 2>/dev/null)" = "kitty" ] && kill "$p" 2>/dev/null
+done
 rm -f "$SOCK"
 
 kitty --class "$CLASS" -e "$NVIM_BIN" --clean --listen "$SOCK" >/dev/null 2>&1 &
