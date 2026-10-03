@@ -28,7 +28,14 @@ HEIGHT=700
 # processes: a bare `pkill -f "kitty --class ..."` also matches any shell whose
 # own command line contains that string, including the one running this script.
 for p in $(pgrep -f "kitty --class $CLASS" 2>/dev/null); do
-  [ "$(ps -o comm= -p "$p" 2>/dev/null)" = "kitty" ] && kill "$p" 2>/dev/null
+  [ "$(ps -o comm= -p "$p" 2>/dev/null)" = "kitty" ] && kill -9 "$p" 2>/dev/null
+done
+# Also any nvim still holding our socket. If a debug session is killed abruptly
+# the debuggee is left ptrace-stopped (ps STAT "t"), where a plain TERM never
+# arrives - and it then shows up in dap's process picker and refuses attach.
+# SIGKILL is the only thing that reaches it.
+for p in $(pgrep -f -- "--listen $SOCK" 2>/dev/null); do
+  [ "$(ps -o comm= -p "$p" 2>/dev/null)" = "nvim" ] && kill -9 "$p" 2>/dev/null
 done
 rm -f "$SOCK"
 
