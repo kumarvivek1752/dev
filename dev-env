@@ -96,6 +96,7 @@ for b in bin/*; do
 done
 
 # Home Dir configs
+copy_file robbyrussell.omp.json "$HOME"
 copy_file .zshrc "$HOME"
 copy_file .bashrc "$HOME"
 copy_file .gitconfig "$HOME"
