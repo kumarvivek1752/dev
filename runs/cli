@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
 
-echo "----------------- installing CLI utilities (fzf) -----------------"
-sudo pacman -S --needed --noconfirm fzf
+echo "----------------- installing CLI utilities (fzf, tmux) -----------------"
+sudo pacman -S --needed --noconfirm fzf tmux
+
+# Install TPM (Tmux Plugin Manager) if not present
+if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
+    echo "Cloning Tmux Plugin Manager (TPM)..."
+    git clone https://github.com/tmux-plugins/tpm "$HOME/.tmux/plugins/tpm"
+fi
