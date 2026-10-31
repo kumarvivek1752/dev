@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+echo "----------------- installing fonts and icon packages -----------------"
+sudo pacman -S --needed --noconfirm \
+    ttf-ubuntu-nerd \
+    ttf-ubuntu-font-family \
+    otf-font-awesome \
+    ttf-nerd-fonts-symbols \
+    ttf-nerd-fonts-symbols-mono \
+    noto-fonts-emoji

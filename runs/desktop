@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+echo "----------------- installing desktop environment packages (waybar, rofi, wofi) -----------------"
+sudo pacman -S --needed --noconfirm waybar rofi wofi

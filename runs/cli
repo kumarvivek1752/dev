@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+echo "----------------- installing CLI utilities (fzf) -----------------"
+sudo pacman -S --needed --noconfirm fzf

@@ -3,7 +3,7 @@
 
 echo "----------------- installing utility softwares -----------------"
 # yes | sudo pacman -S firefox neovim vim zsh hyprland kitty npm i3 python3-venv
-yes | sudo pacman -S firefox neovim zsh hyprland kitty npm i3-wm python go rustup
+yes | sudo pacman -S firefox neovim zsh hyprland kitty npm i3-wm python go rustup fzf
 
 rustup toolchain install stable
 cargo install stylua
