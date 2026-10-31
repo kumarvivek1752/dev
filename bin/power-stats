@@ -1,0 +1,435 @@
+#!/usr/bin/env python3
+"""
+power-stats: Historical Power Consumption & Energy Analytics Reporter
+Queries SQLite time-series power database (~/.local/share/power-usage/power.db)
+Provides summaries across 24h, 7d, 30d, months, years, and desktop notifications.
+"""
+
+import os
+import sys
+import time
+import json
+import sqlite3
+import argparse
+import subprocess
+from datetime import datetime, timedelta
+
+DB_PATH = os.path.expanduser("~/.local/share/power-usage/power.db")
+
+# ANSI Color Codes
+BOLD = "\033[1m" if sys.stdout.isatty() else ""
+DIM = "\033[2m" if sys.stdout.isatty() else ""
+RED = "\033[1;31m" if sys.stdout.isatty() else ""
+GREEN = "\033[1;32m" if sys.stdout.isatty() else ""
+YELLOW = "\033[1;33m" if sys.stdout.isatty() else ""
+BLUE = "\033[1;34m" if sys.stdout.isatty() else ""
+MAGENTA = "\033[1;35m" if sys.stdout.isatty() else ""
+CYAN = "\033[1;36m" if sys.stdout.isatty() else ""
+WHITE = "\033[1;37m" if sys.stdout.isatty() else ""
+RESET = "\033[0m" if sys.stdout.isatty() else ""
+
+def get_connection():
+    if not os.path.exists(DB_PATH):
+        return None
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def make_bar(val, max_val, width=16, color=CYAN):
+    if max_val <= 0:
+        max_val = 1
+    pct = max(0.0, min(1.0, val / max_val))
+    filled = int(pct * width)
+    empty = width - filled
+    bar = "█" * filled + "░" * empty
+    return f"{color}[{bar}]{RESET}"
+
+def format_sec(seconds):
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    if hours > 0:
+        return f"{hours}h {minutes:02d}m"
+    return f"{minutes}m"
+
+# ----------------- Analytics Queries -----------------
+def query_latest(conn):
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM samples ORDER BY timestamp DESC LIMIT 1;")
+    return cur.fetchone()
+
+def query_interval_samples(conn, start_ts, end_ts=None):
+    cur = conn.cursor()
+    if end_ts:
+        cur.execute("""
+            SELECT 
+                COUNT(*) as count,
+                AVG(total_w) as avg_w,
+                MIN(total_w) as min_w,
+                MAX(total_w) as max_w,
+                SUM(total_w) / 3600.0 as energy_wh,
+                AVG(cpu_w) as avg_cpu,
+                AVG(gpu_w) as avg_gpu,
+                AVG(disp_w) as avg_disp,
+                AVG(fan_w) as avg_fan,
+                AVG(base_w) as avg_base,
+                SUM(CASE WHEN ac_online = 1 THEN 1 ELSE 0 END) as ac_sec,
+                SUM(CASE WHEN ac_online = 0 THEN 1 ELSE 0 END) as bat_sec
+            FROM samples
+            WHERE timestamp >= ? AND timestamp <= ?;
+        """, (start_ts, end_ts))
+    else:
+        cur.execute("""
+            SELECT 
+                COUNT(*) as count,
+                AVG(total_w) as avg_w,
+                MIN(total_w) as min_w,
+                MAX(total_w) as max_w,
+                SUM(total_w) / 3600.0 as energy_wh,
+                AVG(cpu_w) as avg_cpu,
+                AVG(gpu_w) as avg_gpu,
+                AVG(disp_w) as avg_disp,
+                AVG(fan_w) as avg_fan,
+                AVG(base_w) as avg_base,
+                SUM(CASE WHEN ac_online = 1 THEN 1 ELSE 0 END) as ac_sec,
+                SUM(CASE WHEN ac_online = 0 THEN 1 ELSE 0 END) as bat_sec
+            FROM samples
+            WHERE timestamp >= ?;
+        """, (start_ts,))
+    return cur.fetchone()
+
+def query_hourly_breakdown_24h(conn):
+    now = int(time.time())
+    start_ts = now - 86400
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT 
+            (timestamp - (timestamp % 3600)) as hr_ts,
+            COUNT(*) as count,
+            AVG(total_w) as avg_w,
+            MIN(total_w) as min_w,
+            MAX(total_w) as max_w,
+            SUM(total_w) / 3600.0 as energy_wh,
+            SUM(CASE WHEN ac_online = 1 THEN 1 ELSE 0 END) as ac_sec,
+            SUM(CASE WHEN ac_online = 0 THEN 1 ELSE 0 END) as bat_sec
+        FROM samples
+        WHERE timestamp >= ?
+        GROUP BY hr_ts
+        ORDER BY hr_ts ASC;
+    """, (start_ts,))
+    return cur.fetchall()
+
+def query_daily_breakdown_month(conn):
+    now = datetime.now()
+    cur = conn.cursor()
+    # Pull completed days from daily_stats
+    cur.execute("""
+        SELECT 
+            date,
+            avg_total_w,
+            min_total_w,
+            max_total_w,
+            energy_kwh,
+            time_on_ac_sec,
+            time_on_bat_sec
+        FROM daily_stats
+        WHERE date LIKE ?
+        ORDER BY date ASC;
+    """, (f"{now.strftime('%Y-%m')}%",))
+    rows = [dict(r) for r in cur.fetchall()]
+
+    # Also compute today's live stats
+    today_str = now.strftime("%Y-%m-%d")
+    today_start = int(datetime(now.year, now.month, now.day).timestamp())
+    cur.execute("""
+        SELECT 
+            AVG(total_w) as avg_w,
+            MIN(total_w) as min_w,
+            MAX(total_w) as max_w,
+            SUM(total_w) / 3600000.0 as energy_kwh,
+            SUM(CASE WHEN ac_online = 1 THEN 1 ELSE 0 END) as ac_sec,
+            SUM(CASE WHEN ac_online = 0 THEN 1 ELSE 0 END) as bat_sec
+        FROM samples
+        WHERE timestamp >= ?;
+    """, (today_start,))
+    trow = cur.fetchone()
+    if trow and trow["avg_w"]:
+        rows.append({
+            "date": f"{today_str} (Today)",
+            "avg_total_w": trow["avg_w"],
+            "min_total_w": trow["min_w"],
+            "max_total_w": trow["max_w"],
+            "energy_kwh": trow["energy_kwh"],
+            "time_on_ac_sec": trow["ac_sec"],
+            "time_on_bat_sec": trow["bat_sec"]
+        })
+    return rows
+
+def query_all_time_totals(conn):
+    cur = conn.cursor()
+    # Sum historical daily_stats + live samples not in daily_stats
+    cur.execute("""
+        SELECT 
+            COUNT(date) as days_count,
+            SUM(energy_kwh) as total_kwh,
+            SUM(time_on_ac_sec + time_on_bat_sec) as total_sec
+        FROM daily_stats;
+    """)
+    d_row = cur.fetchone()
+    hist_kwh = (d_row["total_kwh"] or 0.0) if d_row else 0.0
+    hist_sec = (d_row["total_sec"] or 0) if d_row else 0
+    hist_days = (d_row["days_count"] or 0) if d_row else 0
+
+    # Plus samples from today
+    now = datetime.now()
+    today_start = int(datetime(now.year, now.month, now.day).timestamp())
+    cur.execute("""
+        SELECT 
+            SUM(total_w) / 3600000.0 as today_kwh,
+            COUNT(*) as today_sec
+        FROM samples
+        WHERE timestamp >= ?;
+    """, (today_start,))
+    s_row = cur.fetchone()
+    if s_row:
+        hist_kwh += (s_row["today_kwh"] or 0.0)
+        hist_sec += (s_row["today_sec"] or 0)
+        hist_days += 1
+
+    return hist_kwh, hist_sec, hist_days
+
+# ----------------- Commands -----------------
+def cmd_summary(conn):
+    now = datetime.now()
+    now_ts = int(now.timestamp())
+    latest = query_latest(conn)
+
+    # 1. Today (since 00:00)
+    today_start = int(datetime(now.year, now.month, now.day).timestamp())
+    s_today = query_interval_samples(conn, today_start)
+
+    # 2. Last 24 Hours
+    s_24h = query_interval_samples(conn, now_ts - 86400)
+
+    # 3. Last 7 Days
+    s_7d = query_interval_samples(conn, now_ts - 7 * 86400)
+
+    # 4. All Time
+    all_kwh, all_sec, all_days = query_all_time_totals(conn)
+
+    print(f"{BOLD}{CYAN}╔════════════════════════════════════════════════════════════════════════════════╗{RESET}")
+    print(f"{BOLD}{CYAN}║{RESET} {BOLD}{WHITE}LAPTOP POWER USAGE & 24H ENERGY CONSUMPTION REPORT{RESET}          {DIM}{now.strftime('%Y-%m-%d %H:%M:%S')}{RESET} {BOLD}{CYAN}║{RESET}")
+    print(f"{BOLD}{CYAN}╚════════════════════════════════════════════════════════════════════════════════╝{RESET}")
+
+    # Realtime Snapshot
+    if latest:
+        pwr_badge = f"{GREEN}[ 🔌 AC MAINS ]{RESET}" if latest["ac_online"] == 1 else f"{YELLOW}[ 🔋 ON BATTERY ]{RESET}"
+        print(f"{BOLD}{MAGENTA}▶ REAL-TIME STATUS{RESET}  {pwr_badge}  Battery: {latest['bat_pct']}%")
+        print(f"  {BOLD}Current Draw:{RESET} {BOLD}{YELLOW}{latest['total_w']:.2f} W{RESET}  | CPU: {latest['cpu_w']:.2f} W ({latest['cpu_usage']}%) | GPU: {latest['gpu_w']:.2f} W | Disp: {latest['disp_w']:.2f} W | Fans: {latest['fan_w']:.2f} W")
+        print("")
+
+    # Today's Usage
+    today_wh = s_today["energy_wh"] or 0.0 if s_today else 0.0
+    today_kwh = today_wh / 1000.0
+    today_avg = s_today["avg_w"] or 0.0 if s_today else 0.0
+    today_max = s_today["max_w"] or 0.0 if s_today else 0.0
+    today_ac = s_today["ac_sec"] or 0 if s_today else 0
+    today_bat = s_today["bat_sec"] or 0 if s_today else 0
+    today_total_sec = today_ac + today_bat
+
+    print(f"{BOLD}{GREEN}▶ TODAY'S CONSUMPTION (Since 00:00){RESET}")
+    print(f"  {BOLD}Total Energy    :{RESET} {BOLD}{YELLOW}{today_kwh:.3f} kWh{RESET} ({today_wh:.1f} Wh)")
+    print(f"  {DIM}Average Draw    :{RESET} {BOLD}{WHITE}{today_avg:.2f} W{RESET}  {DIM}| Peak Recorded:{RESET} {BOLD}{WHITE}{today_max:.2f} W{RESET}")
+    print(f"  {DIM}Time Active     :{RESET} {format_sec(today_total_sec)} ({format_sec(today_ac)} AC mains, {format_sec(today_bat)} on battery)")
+    print("")
+
+    # 24 Hours & 7 Days
+    wh_24h = s_24h["energy_wh"] or 0.0 if s_24h else 0.0
+    kwh_24h = wh_24h / 1000.0
+    avg_24h = s_24h["avg_w"] or 0.0 if s_24h else 0.0
+    max_24h = s_24h["max_w"] or 0.0 if s_24h else 0.0
+
+    kwh_7d = (s_7d["energy_wh"] or 0.0) / 1000.0 if s_7d else 0.0
+    avg_7d = s_7d["avg_w"] or 0.0 if s_7d else 0.0
+
+    print(f"{BOLD}{YELLOW}▶ HISTORICAL ENERGY TOTALS{RESET}")
+    print(f"  {BOLD}Past 24 Hours   :{RESET} {BOLD}{WHITE}{kwh_24h:.3f} kWh{RESET}  {DIM}| Avg:{RESET} {avg_24h:.2f} W  {DIM}| Peak:{RESET} {max_24h:.2f} W")
+    print(f"  {BOLD}Past 7 Days     :{RESET} {BOLD}{WHITE}{kwh_7d:.3f} kWh{RESET}  {DIM}| Avg:{RESET} {avg_7d:.2f} W  {DIM}| Daily Avg:{RESET} {kwh_7d / 7.0:.3f} kWh/day")
+    print(f"  {BOLD}All-Time Tracked:{RESET} {BOLD}{WHITE}{all_kwh:.3f} kWh{RESET}  {DIM}| Total Uptime Tracked:{RESET} {format_sec(all_sec)} across {all_days} days")
+    print("")
+
+    # Subsystem Breakdown (Today)
+    if s_today and s_today["avg_w"]:
+        cpu_wh = ((s_today["avg_cpu"] or 0.0) * today_total_sec) / 3600.0
+        gpu_wh = ((s_today["avg_gpu"] or 0.0) * today_total_sec) / 3600.0
+        disp_wh = ((s_today["avg_disp"] or 0.0) * today_total_sec) / 3600.0
+        fan_wh = ((s_today["avg_fan"] or 0.0) * today_total_sec) / 3600.0
+        base_wh = ((s_today["avg_base"] or 0.0) * today_total_sec) / 3600.0
+        sum_wh = max(0.1, cpu_wh + gpu_wh + disp_wh + fan_wh + base_wh)
+
+        print(f"{BOLD}{WHITE}▶ ENERGY BUDGET BREAKDOWN (Today's Cumulative){RESET}")
+        for label, wh, col in [
+            ("CPU", cpu_wh, CYAN),
+            ("dGPU", gpu_wh, GREEN),
+            ("Display", disp_wh, YELLOW),
+            ("Fans", fan_wh, WHITE),
+            ("Platform", base_wh, MAGENTA)
+        ]:
+            bar = make_bar(wh, sum_wh, width=16, color=col)
+            pct = (wh / sum_wh) * 100.0
+            print(f"  {label:<10} {bar}  {BOLD}{wh/1000.0:6.3f} kWh{RESET} ({pct:5.1f}%)")
+        print("")
+
+    print(f"{DIM}Commands: 'power-stats --24h' (hourly graph) | 'power-stats -m' (monthly) | 'power-stats --notify'{RESET}")
+
+def cmd_24h(conn):
+    rows = query_hourly_breakdown_24h(conn)
+    if not rows:
+        print("No samples recorded in the last 24 hours yet.")
+        return
+
+    max_w = max((r["avg_w"] for r in rows), default=50.0)
+    print(f"{BOLD}{CYAN}=== LAST 24 HOURS HOURLY BREAKDOWN ==={RESET}\n")
+    print(f"{BOLD}{'HOUR':<13} {'AVG WATTS':<11} {'ENERGY (Wh)':<13} {'PEAK (W)':<10} {'ACTIVE':<9} {'GRAPH'}{RESET}")
+    print("─" * 78)
+
+    total_wh = 0.0
+    for r in rows:
+        dt = datetime.fromtimestamp(r["hr_ts"]).strftime("%m-%d %H:00")
+        avg_w = r["avg_w"] or 0.0
+        energy_wh = r["energy_wh"] or 0.0
+        total_wh += energy_wh
+        peak_w = r["max_w"] or 0.0
+        active_sec = (r["ac_sec"] or 0) + (r["bat_sec"] or 0)
+        bar = make_bar(avg_w, max_w, width=18, color=CYAN)
+        print(f"{dt:<13} {avg_w:7.2f} W   {energy_wh:8.2f} Wh    {peak_w:6.2f} W   {format_sec(active_sec):<9} {bar}")
+
+    print("─" * 78)
+    print(f"{BOLD}Total Energy in 24h: {total_wh / 1000.0:.3f} kWh ({total_wh:.1f} Wh){RESET}\n")
+
+def cmd_month(conn):
+    rows = query_daily_breakdown_month(conn)
+    if not rows:
+        print("No daily stats recorded for this month yet.")
+        return
+
+    max_kwh = max((r["energy_kwh"] or 0.0 for r in rows), default=1.0)
+    print(f"{BOLD}{CYAN}=== MONTHLY BREAKDOWN (DAY BY DAY) ==={RESET}\n")
+    print(f"{BOLD}{'DATE':<18} {'ENERGY (kWh)':<14} {'AVG WATTS':<11} {'PEAK (W)':<10} {'RUNTIME':<10} {'GRAPH'}{RESET}")
+    print("─" * 78)
+
+    month_kwh = 0.0
+    for r in rows:
+        dt = r["date"]
+        kwh = r["energy_kwh"] or 0.0
+        month_kwh += kwh
+        avg_w = r["avg_total_w"] or 0.0
+        peak_w = r["max_total_w"] or 0.0
+        sec = (r["time_on_ac_sec"] or 0) + (r["time_on_bat_sec"] or 0)
+        bar = make_bar(kwh, max_kwh, width=16, color=GREEN)
+        print(f"{dt:<18} {kwh:8.3f} kWh   {avg_w:7.2f} W   {peak_w:6.2f} W   {format_sec(sec):<10} {bar}")
+
+    print("─" * 78)
+    print(f"{BOLD}Total This Month: {month_kwh:.3f} kWh{RESET}\n")
+
+def cmd_notify(conn):
+    now = datetime.now()
+    today_start = int(datetime(now.year, now.month, now.day).timestamp())
+    s_today = query_interval_samples(conn, today_start)
+    latest = query_latest(conn)
+
+    today_kwh = (s_today["energy_wh"] or 0.0) / 1000.0 if s_today else 0.0
+    today_avg = s_today["avg_w"] or 0.0 if s_today else 0.0
+    cur_w = latest["total_w"] if latest else 0.0
+    bat_pct = latest["bat_pct"] if latest else 100
+    src = "AC Mains" if (latest and latest["ac_online"] == 1) else "Battery"
+
+    title = "⚡ Laptop Power Summary"
+    body = (
+        f"Live Draw: {cur_w:.1f} W ({src}, {bat_pct}%)\n"
+        f"Today Consumed: {today_kwh:.3f} kWh\n"
+        f"Today Avg: {today_avg:.1f} W | Uptime: {format_sec((s_today['ac_sec'] or 0) + (s_today['bat_sec'] or 0))}"
+    )
+
+    try:
+        subprocess.run(["notify-send", "-a", "Power Monitor", "-i", "battery", title, body], check=False)
+        print("Desktop notification sent.")
+    except Exception as e:
+        print(f"Failed to send notification: {e}")
+
+def cmd_waybar(conn):
+    latest = query_latest(conn)
+    if not latest:
+        print(json.dumps({"text": "⚡ --W", "tooltip": "No power telemetry available yet", "class": "unknown"}))
+        return
+
+    now = datetime.now()
+    today_start = int(datetime(now.year, now.month, now.day).timestamp())
+    s_today = query_interval_samples(conn, today_start)
+
+    today_wh = (s_today["energy_wh"] or 0.0) if s_today else 0.0
+    today_kwh = today_wh / 1000.0
+    today_avg = (s_today["avg_w"] or 0.0) if s_today else 0.0
+
+    total_w = latest["total_w"]
+    src = "AC Mains" if latest["ac_online"] == 1 else "Battery"
+    css_class = "ac" if latest["ac_online"] == 1 else "discharging"
+    icon = "⚡" if latest["ac_online"] == 1 else "🔋"
+
+    text = f"{icon} {total_w:.1f}W"
+    if today_kwh >= 0.001:
+        text += f" ({today_kwh:.3f}kWh)"
+
+    lines = [
+        f"<b>Total System Power: {total_w:.2f} Watts</b>",
+        "────────────────────────────────────────",
+        f"<b>CPU:</b>      {latest['cpu_w']:.2f} W  ({latest['cpu_usage']:.1f}% load, {latest['cpu_temp']:.0f}°C)",
+        f"<b>dGPU:</b>     {latest['gpu_w']:.2f} W  ({latest['gpu_usage']:.0f}% load, {latest['gpu_temp']:.0f}°C)",
+        f"<b>Display:</b>  {latest['disp_w']:.2f} W",
+        f"<b>Fans:</b>     {latest['fan_w']:.2f} W",
+        f"<b>Platform:</b> {latest['base_w']:.2f} W  (RAM, SSD, Wi-Fi, Chipset)",
+        "────────────────────────────────────────",
+        f"<b>Source:</b>   {src} (Battery: {latest['bat_pct']}%)",
+    ]
+    if s_today and s_today["count"] > 0:
+        active_sec = (s_today["ac_sec"] or 0) + (s_today["bat_sec"] or 0)
+        lines.append("────────────────────────────────────────")
+        lines.append(f"📊 <b>Today:</b> {today_kwh:.3f} kWh (avg {today_avg:.1f} W, uptime: {format_sec(active_sec)})")
+        lines.append("Left-click: Notification | Right-click: Full report")
+
+    tooltip = "\n".join(lines)
+    payload = {
+        "text": text,
+        "tooltip": tooltip,
+        "class": css_class
+    }
+    print(json.dumps(payload))
+
+def main():
+    parser = argparse.ArgumentParser(description="Laptop Power & Energy Analytics Reporter")
+    parser.add_argument("-24", "--24h", action="store_true", help="Show hour-by-hour power breakdown for the last 24 hours")
+    parser.add_argument("-m", "--month", action="store_true", help="Show day-by-day power breakdown for the current month")
+    parser.add_argument("-n", "--notify", action="store_true", help="Send quick summary desktop notification")
+    parser.add_argument("-b", "--waybar", action="store_true", help="Output compact JSON for Waybar custom module")
+    args = parser.parse_args()
+
+    conn = get_connection()
+    if not conn:
+        print(f"Database not found at {DB_PATH}. Is power-logger running?", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        if args.waybar:
+            cmd_waybar(conn)
+        elif args.notify:
+            cmd_notify(conn)
+        elif args.__dict__["24h"]:
+            cmd_24h(conn)
+        elif args.month:
+            cmd_month(conn)
+        else:
+            cmd_summary(conn)
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    main()

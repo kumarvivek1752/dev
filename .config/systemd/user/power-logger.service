@@ -1,0 +1,11 @@
+[Unit]
+Description=Laptop 24/7 Power Consumption & Energy Logging Service
+After=default.target
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.local/bin/power-logger
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

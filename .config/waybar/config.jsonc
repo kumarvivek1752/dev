@@ -14,6 +14,7 @@
         "network#speed",
         "cpu",
         "memory",
+        "custom/power",
         "battery",
         "temperature",
         "backlight",
@@ -101,8 +102,7 @@
         "format-linked": "󰈁 {ifname} (No IP)",
         "tooltip-format-wifi": "{essid} {icon} {signalStrength}%",
         "tooltip-format-ethernet": "{ifname} 󰌘",
-        "tooltip-format-disconnected": "󰌙 Disconnected",
-        "max-length": 30
+        "tooltip-format-disconnected": "󰌙 Disconnected"
     },
     "pulseaudio": {
         //"scroll-step": 1,
@@ -131,5 +131,14 @@
         "signal": 9,
         "on-click": "nordvpn-waybar toggle",
         "on-click-right": "nordvpn-menu"
+    },
+    "custom/power": {
+        "format": "{}",
+        "exec": "power-stats --waybar",
+        "return-type": "json",
+        "interval": 2,
+        "tooltip": true,
+        "on-click": "power-stats --notify",
+        "on-click-right": "kitty -e power-stats"
     }
 }

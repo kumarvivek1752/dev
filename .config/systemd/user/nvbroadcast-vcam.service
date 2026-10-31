@@ -1,0 +1,14 @@
+[Unit]
+Description=NVbroadcast Virtual Camera Service
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/home/vivek/.local/bin/nvbroadcast-vcam
+Restart=on-failure
+RestartSec=3
+Environment=PYTHONNOUSERSITE=1
+Environment=GST_PLUGIN_PATH=/usr/lib64/gstreamer-1.0
+
+[Install]
+WantedBy=graphical-session.target

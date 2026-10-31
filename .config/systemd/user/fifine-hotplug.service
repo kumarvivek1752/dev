@@ -1,0 +1,12 @@
+[Unit]
+Description=Fifine Microphone Dynamic Hotplug for Arch Linux VM
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/fifine-hotplug.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

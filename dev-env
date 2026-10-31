@@ -34,6 +34,9 @@ copy_dir() {
     for dir in "$src"/*; do
         if [ -d "$dir" ]; then
             target=$(basename "$dir")
+            if [ "$target" == "systemd" ]; then
+                continue
+            fi
             execute rm -rf -- "$dest/$target"
             execute cp -r "$dir" "$dest/"
         fi
@@ -75,6 +78,22 @@ copy_file .config/google-chrome-flags.conf "$HOME/.config"
 copy_file .config/chrome-flags.conf "$HOME/.config"
 copy_file .config/microsoft-edge-stable-flags.conf "$HOME/.config"
 copy_file .config/kwalletrc "$HOME/.config"
+
+# Systemd user services
+execute mkdir -p "$HOME/.config/systemd/user"
+for s in .config/systemd/user/*.service; do
+    if [ -f "$s" ]; then
+        copy_file "$s" "$HOME/.config/systemd/user"
+    fi
+done
+
+# Local bin scripts
+execute mkdir -p "$HOME/.local/bin"
+for b in bin/*; do
+    if [ -f "$b" ]; then
+        copy_file "$b" "$HOME/.local/bin"
+    fi
+done
 
 # Home Dir configs
 copy_file .zshrc "$HOME"

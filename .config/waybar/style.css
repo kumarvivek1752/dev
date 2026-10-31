@@ -20,7 +20,7 @@ window#waybar {
     padding: 0 5px;
 }
 */
-#language, #pulseaudio, #custom-nordvpn, #network,#cpu, #memory, #temperature,#backlight, #battery, #clock, #tray {
+#language, #pulseaudio, #custom-nordvpn, #network,#cpu, #memory, #custom-power, #temperature,#backlight, #battery, #clock, #tray {
     padding-right: 9px;
     padding-left: 8px;
     border-right: 1px solid #ffffff;
@@ -52,9 +52,21 @@ window#waybar {
 /*     border-bottom: 3px solid white; */
 /* } */
 
-#clock, #battery, #cpu, #memory, #network, #pulseaudio, #custom-nordvpn, #custom-spotify, #tray, #mode {
+#clock, #battery, #custom-power, #cpu, #memory, #network, #pulseaudio, #custom-nordvpn, #custom-spotify, #tray, #mode {
     padding: 0 3px;
     margin: 0 3px;
+}
+
+#custom-power {
+    color: #ffffff;
+}
+
+#custom-power.charging {
+    color: #e88939;
+}
+
+#custom-power.discharging {
+    color: #e5c07b;
 }
 
 /* #clock { */

@@ -1,0 +1,27 @@
+[Unit]
+Description=Rclone Copyparty Mount
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Pre-check: only attempt mount if server port or host is reachable (1s timeout)
+ExecCondition=/usr/bin/bash -c 'nc -z -w 1 192.168.1.43 3923 || ping -c 1 -W 1 192.168.1.43'
+ExecStart=/usr/bin/rclone mount copyparty_homelab: /home/vivek/copyparty \
+    --vfs-cache-mode full \
+    --vfs-cache-max-age 24h \
+    --dir-cache-time 72h \
+    --buffer-size 64M \
+    --cache-dir /home/vivek/.cache/rclone \
+    --vfs-write-back 15s \
+    --timeout 5s \
+    --contimeout 2s \
+    --low-level-retries 1 \
+    --retries 1
+# Lazy unmount (-uz) so it cleans up even if stalled or disconnected
+ExecStop=/usr/bin/fusermount3 -uz /home/vivek/copyparty
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target
